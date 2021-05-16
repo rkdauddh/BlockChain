@@ -39,7 +39,6 @@ contract Beneficiary is manage {//for beneficiary
     struct Contribution {
         uint256 _Amount; //기부액
         uint256 _date; //기부날짜
-        uint256 _index; // 몇 번째 contributor인지
         string _contributor; //기부자 이름을 기부자가 정해서 넣을 수 있도록?
     }
     
@@ -100,19 +99,7 @@ contract Cointribution is Beneficiary, Donator {//manage를 상속받아야 할�
 
     mapping (address => uint256) private _balances;
 
-    struct Tokenbill{
-        uint256 paymentEther;
-        uint256 reservedToken;
-    }
-
-    mapping (address => Tokenbill[]) private donaHistory;
-
-    struct Tokenbill2{
-        uint256 soldToken;
-        address donator_;
-    }
-
-    mapping(address => Tokenbill2[]) private beneHistory;
+    mapping(address => Contribution[]) private beneHistory;
 
     constructor(string memory name_, string memory symbol_, uint256 totalsupply_, uint256 price_) Beneoper(){
         _name = name_;
@@ -121,7 +108,8 @@ contract Cointribution is Beneficiary, Donator {//manage를 상속받아야 할�
         _price = price_;
     }
 
-    function donate(address _beneficiary, uint index, uint256 _value) internal virtual isopened(index){
+    function donate(address _beneficiary, uint index, uint256 _value , string memory doname) internal virtual isopened(index){
+        //특정 수혜자의 index번째 기부(토큰 판매)에 _value만큼의 토큰을 구매함으로써 참여 
         //수혜자가 기부자에게 토큰을 파는 형태. 토큰을 사는 행위 = 기부 ; 이더 지불 구현은 skip
         require(_beneficiary == beneficiary, "ERROR: Donate to only beneficiary");
         require(_value > 0, "ERROR: cannot donate 0 tokens");
@@ -129,8 +117,8 @@ contract Cointribution is Beneficiary, Donator {//manage를 상속받아야 할�
 
         _balances[msg.sender] += _value;
         _balances[_beneficiary] -= _value;
-        donaHistory[msg.sender].push(Tokenbill(_value*_price, _value)); //토큰 수 * 토큰 가격만큼 이더를 지불한 셈 치고 기부자 장부에 기록
-        beneHistory[_beneficiary].push(Tokenbill2(_value,msg.sender)); // 판매한 토큰, 구매자 주소를 수혜자 장부에 기록
+        updateDonation(msg.sender,_value*_price); //토큰 수 * 토큰 가격만큼 이더를 지불한 셈 치고 기부자 장부에 기록
+        beneHistory[_beneficiary].push(Contribution(_value,block.timestamp,doname)); // 판매한 토큰, 구매자 주소를 수혜자 장부에 기록
         
         emit Transfer(beneficiary, donator, _value);
     }
