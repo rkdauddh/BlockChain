@@ -8,7 +8,12 @@ contract manage {
         owner = msg.sender;
     }
 
-    function transferOwnership(address _new) internal virtual{
+    modifier Owneroper(){
+        require(msg.sender == owner, "ERROR: Only Manager can operate this function.");
+        _;
+    }
+
+    function transferOwnership(address _new) internal virtual Owneroper(){
         address oldown = owner;
         owner = _new;
 
@@ -18,48 +23,125 @@ contract manage {
 
 }
 
-contract Beneficiary is manage {
-    address public coin;
+contract Beneficiary is manage {//for beneficiary
+    address beneficiary;
     uint idx;//counter
+
     struct ContributionList {
         uint status_; // 1:open, 2:close / string으로 하면 modifier에서 string memory로 instance를 선언해야 하는데, 그러면 compare가 안됨..
         address beneficiaryAddress_;
-        string startDate_; 
-        string closedDate_;
+        uint256 startDate_; 
+        uint256 closedDate_;
     }
 
     ContributionList [] public status;
 
     struct Contribution {
         uint256 _Amount; //기부액
-        string _date; //기부날짜
+        uint256 _date; //기부날짜
         uint256 _index; // 몇 번째 contributor인지
         string _contributor; //기부자 이름을 기부자가 정해서 넣을 수 있도록?
     }
     
-    function setStatus(address _beneficiary, uint _status, string memory sdate, string memory cdate) internal virtual{
+    function Addcontribution(address _beneficiary, uint _status, uint256 sdate, uint256 cdate) internal virtual Beneoper(){
         status[idx++] = ContributionList(_status,_beneficiary,sdate,cdate);
     }
 
-    function Datetoint(string memory Date) public returns (uint){
-        //Date(string)를 int로 바꾸는 함수(closedDate 날짜 지나면 close function으로 닫을 수 있게)
-        //구현은 나중에
-        return 0;
+    modifier Beneoper(){
+        require(msg.sender == beneficiary, "ERROR:Only Beneficiary can operate this function.");
+        _;
     }
-    function CheckandClose(string memory date) public virtual{
-        //각 기부의 status가 유효한지 확인하고, 날짜 지난 기부는 close로 만든다.
+
+
+    function CheckandClose(uint256 date) internal virtual Owneroper() {
+        //각 기부의 status가 유효한지 확인하고, 날짜 지난 기부는 close로 만든다. (관리자만 할 수 있는 기능)
         //어차피 관리자가 open을 할 경우는 없으니까(close된 기부를 open하는 대신 새로운 기부를 만들면 되니까) 닫기만 한다.
         for(uint i=0; i<idx; i++){
             require(status[i].status_ == 1 || status[i].status_ == 2, "ERROR : invalid status"); //수정필요 : 어느 인덱스의 상태가 invalid한지(int를 string으로 바꾸는 함수가 따로 없어 구현 필요)
-            if(Datetoint(status[i].closedDate_)<=Datetoint(date)&&status[i].status_ == 1){
+            if(status[i].closedDate_<=date&&status[i].status_ == 1){
                 status[i].status_ = 2;
             }
         }
     }
 }
 
-contract Cointribution is manage {//manage를 상속받아야 할지 beneficiary를 상속받아야 할지 모르겠음.
+contract Donator is manage, Beneficiary{
+    address public donator;
+    struct donation{
+        uint256 _date;
+        uint256 _amount;
+    }
+    mapping(address => donation[]) public Totaldonation;
+
+    modifier donaoper(){
+        require(msg.sender == donator, "ERROR:Only Donator can operate this function");
+        _;
+    }
+
+    function updateDonation(address _donator, uint256 _amount) internal virtual donaoper(){
+        Totaldonation[_donator].push(donation(block.timestamp,_amount));
+    }
+
+
+}
+
+contract Cointribution is Beneficiary, Donator {//manage를 상속받아야 할지 beneficiary를 상속받아야 할지 모르겠음.
 //다음주까지 완료 예정
+    string private _name;
+    string private _symbol;
+    uint8 private _decimals = 2;
+    uint256 private _totalsupply;
+    uint256 private _price;
+    
+    modifier isopened(uint contributionidx){
+        require(status[contributionidx].status_ == 1, "ERROR: The contribution is closed");
+        _;
+    }
+
+    mapping (address => uint256) private _balances;
+
+    struct Tokenbill{
+        uint256 paymentEther;
+        uint256 reservedToken;
+    }
+
+    mapping (address => Tokenbill[]) private donaHistory;
+
+    struct Tokenbill2{
+        uint256 soldToken;
+        address donator_;
+    }
+
+    mapping(address => Tokenbill2[]) private beneHistory;
+
+    constructor(string memory name_, string memory symbol_, uint256 totalsupply_, uint256 price_) Beneoper(){
+        _name = name_;
+        _symbol = symbol_;
+        _totalsupply = totalsupply_;
+        _price = price_;
+    }
+
+    function donate(address _beneficiary, uint index, uint256 _value) internal virtual isopened(index){
+        //수혜자가 기부자에게 토큰을 파는 형태. 토큰을 사는 행위 = 기부 ; 이더 지불 구현은 skip
+        require(_beneficiary == beneficiary, "ERROR: Donate to only beneficiary");
+        require(_value > 0, "ERROR: cannot donate 0 tokens");
+        require(_balances[_beneficiary]>=_value, "ERROR: Not enough token");
+
+        _balances[msg.sender] += _value;
+        _balances[_beneficiary] -= _value;
+        donaHistory[msg.sender].push(Tokenbill(_value*_price, _value)); //토큰 수 * 토큰 가격만큼 이더를 지불한 셈 치고 기부자 장부에 기록
+        beneHistory[_beneficiary].push(Tokenbill2(_value,msg.sender)); // 판매한 토큰, 구매자 주소를 수혜자 장부에 기록
+        
+        emit Transfer(beneficiary, donator, _value);
+    }
+
+    function withdrawal() internal virtual{
+        //토큰을 인출하여 거래소에서 거래하는 등 활동을 할 수 있다. -> 토큰 구매 행위 = 기부
+        //수혜자가 토큰을 인출하여 판매할 시 - 구매자가 기부자가 되는 것.
+        //기부자가 토큰을 인출하여 판매할 시 - 기부자가 구매자에게 기부를 양도하는 것(최종 기부자 = 구매자 / 기부액 = 최초 기부자가 지불한 금액(고정))
+    }
+
+    event Transfer(address indexed from, address indexed to, uint256 value); // 수혜자가 기부자에게 토큰을 보내는 event
 }
 
 
