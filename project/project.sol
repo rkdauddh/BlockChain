@@ -29,7 +29,7 @@ contract Beneficiary is manage {//for beneficiary
     address private beneficiary;
     uint idx;//counter
 
-    
+
     struct ContributionList {
         uint status_; // 1:open, 2:close / string으로 하면 modifier에서 string memory로 instance를 선언해야 하는데, 그러면 compare가 안됨..
         address beneficiaryAddress_;
@@ -128,7 +128,7 @@ contract Cointribution is Beneficiary, Donator/*, ERC20 */{
         return _balances[account];
     }
 
-    constructor(string memory name_, string memory symbol_, uint256 totalsupply_, uint256 price_) Beneoper(){
+    constructor(string memory name_, string memory symbol_, uint256 totalsupply_, uint256 price_){
         _name = name_;
         _symbol = symbol_;
         _totalsupply = totalsupply_;
