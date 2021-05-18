@@ -1,6 +1,8 @@
 //SPDX-License-Identifier: SNU
 pragma solidity ^0.8.0;
 
+//need to import an ERC20 open source.
+
 contract manage {
     address private owner;
     event TransferOwnership(address oldown, address newown);
@@ -24,7 +26,7 @@ contract manage {
 }
 
 contract Beneficiary is manage {//for beneficiary
-    address beneficiary;
+    address private beneficiary;
     uint idx;//counter
 
     struct ContributionList {
@@ -41,7 +43,7 @@ contract Beneficiary is manage {//for beneficiary
         uint256 _date; //기부날짜
         string _contributor; //기부자 이름을 기부자가 정해서 넣을 수 있도록?
     }
-    
+
     function Addcontribution(address _beneficiary, uint _status, uint256 sdate, uint256 cdate) internal virtual Beneoper(){
         status[idx++] = ContributionList(_status,_beneficiary,sdate,cdate);
     }
@@ -49,6 +51,10 @@ contract Beneficiary is manage {//for beneficiary
     modifier Beneoper(){
         require(msg.sender == beneficiary, "ERROR:Only Beneficiary can operate this function.");
         _;
+    }
+
+    function IsBene(address add) internal virtual returns(bool){
+        return (add==beneficiary);
     }
 
 
@@ -84,7 +90,7 @@ contract Donator is manage, Beneficiary{
 
 }
 
-contract Cointribution is Beneficiary, Donator {//manage를 상속받아야 할지 beneficiary를 상속받아야 할지 모르겠음.
+contract Cointribution is Beneficiary, Donator/*, ERC20 */{
 //다음주까지 완료 예정
     string private _name;
     string private _symbol;
@@ -92,7 +98,17 @@ contract Cointribution is Beneficiary, Donator {//manage를 상속받아야 할�
     uint256 private _totalsupply;
     uint256 private _price;
     
-    modifier isopened(uint contributionidx){
+    function name() public view virtual returns (string memory){
+        return _name;
+    }
+    
+    function symbol() public view virtual returns (string memory){
+        return _symbol;
+    }
+    
+    modifier isvalid(address beneficiary_, uint contributionidx){
+        require(IsBene(beneficiary_), "ERROR: You can donate to only beneficiaries");
+        require(status[contributionidx].beneficiaryAddress_ == beneficiary_, "ERROR: Wrong beneficiary address");
         require(status[contributionidx].status_ == 1, "ERROR: The contribution is closed");
         _;
     }
@@ -101,6 +117,10 @@ contract Cointribution is Beneficiary, Donator {//manage를 상속받아야 할�
 
     mapping(address => Contribution[]) private beneHistory;
 
+    function balanceOf(address account) public view virtual returns (uint256) {
+        return _balances[account];
+    }
+
     constructor(string memory name_, string memory symbol_, uint256 totalsupply_, uint256 price_) Beneoper(){
         _name = name_;
         _symbol = symbol_;
@@ -108,25 +128,39 @@ contract Cointribution is Beneficiary, Donator {//manage를 상속받아야 할�
         _price = price_;
     }
 
-    function donate(address _beneficiary, uint index, uint256 _value , string memory doname) internal virtual isopened(index){
+    function donate(address _beneficiary, uint index, uint256 _value , string memory doname) internal virtual isvalid(_beneficiary, index){
         //특정 수혜자의 index번째 기부(토큰 판매)에 _value만큼의 토큰을 구매함으로써 참여 
         //수혜자가 기부자에게 토큰을 파는 형태. 토큰을 사는 행위 = 기부 ; 이더 지불 구현은 skip
-        require(_beneficiary == beneficiary, "ERROR: Donate to only beneficiary");
         require(_value > 0, "ERROR: cannot donate 0 tokens");
-        require(_balances[_beneficiary]>=_value, "ERROR: Not enough token");
+        require(balanceOf(_beneficiary)>=_value, "ERROR: Not enough token");
 
         _balances[msg.sender] += _value;
         _balances[_beneficiary] -= _value;
         updateDonation(msg.sender,_value*_price); //토큰 수 * 토큰 가격만큼 이더를 지불한 셈 치고 기부자 장부에 기록
         beneHistory[_beneficiary].push(Contribution(_value,block.timestamp,doname)); // 판매한 토큰, 구매자 주소를 수혜자 장부에 기록
         
-        emit Transfer(beneficiary, donator, _value);
+        emit Transfer(_beneficiary, donator, _value);
     }
+
+    function _mint(uint256 amount) internal virtual Beneoper(){
+        //수혜자가 판매용 토큰 받기(수혜자만 가능)
+        emit Transfer(address(0), msg.sender, amount);
+    }
+
+    function _burn(uint256 amount) internal virtual Beneoper(){
+        //판매하고 남은 Token 소각
+        require(balanceOf(msg.sender) >= amount, "ERROR: not enough token");
+        
+        emit Transfer(msg.sender, address(0), amount);
+    }
+
+
 
     function withdrawal() internal virtual{
         //토큰을 인출하여 거래소에서 거래하는 등 활동을 할 수 있다. -> 토큰 구매 행위 = 기부
         //수혜자가 토큰을 인출하여 판매할 시 - 구매자가 기부자가 되는 것.
         //기부자가 토큰을 인출하여 판매할 시 - 기부자가 구매자에게 기부를 양도하는 것(최종 기부자 = 구매자 / 기부액 = 최초 기부자가 지불한 금액(고정))
+        //구현은 안하고 개념적으로만 언급하면 어떨지..ㅎㅎ
     }
 
     event Transfer(address indexed from, address indexed to, uint256 value); // 수혜자가 기부자에게 토큰을 보내는 event
