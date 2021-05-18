@@ -29,6 +29,7 @@ contract Beneficiary is manage {//for beneficiary
     address private beneficiary;
     uint idx;//counter
 
+    
     struct ContributionList {
         uint status_; // 1:open, 2:close / string으로 하면 modifier에서 string memory로 instance를 선언해야 하는데, 그러면 compare가 안됨..
         address beneficiaryAddress_;
@@ -44,9 +45,15 @@ contract Beneficiary is manage {//for beneficiary
         string _contributor; //기부자 이름을 기부자가 정해서 넣을 수 있도록?
     }
 
+    function Benef() internal virtual{
+        beneficiary = msg.sender;
+    }
+
     function Addcontribution(address _beneficiary, uint _status, uint256 sdate, uint256 cdate) internal virtual Beneoper(){
         status[idx++] = ContributionList(_status,_beneficiary,sdate,cdate);
     }
+
+
 
     modifier Beneoper(){
         require(msg.sender == beneficiary, "ERROR:Only Beneficiary can operate this function.");
