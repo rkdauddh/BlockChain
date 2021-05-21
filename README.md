@@ -1,6 +1,6 @@
 # BlockChain
 
-Project 폴더 내에 project.sol 있습니다..
+Project 폴더 내에 project.sol(예전파일), projectfinal(새 파일) 있습니다..
 
 구현하면서 써본 간단한 구조도(제가 잘 이해를 못했거나, 방향이 다른데 제 방향이 더 안좋아서 고쳐야겠다 하면 알려주세요..)
 
