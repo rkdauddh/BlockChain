@@ -13,7 +13,8 @@ contract ERC20 {
         _coinSymbol[_index] = _symbol;
         _totalSupply[_index] = _amount;
         _balances[_donationFundingAddress] = _amount;        //기부리스트 생성 초기에, 수혜자주소에 발행한 ERC20코인 총량을 넣는다. 이후 기부자들이 이를 구매시 차감된다.
-       
+
+        emit Transfer(address(0), _donationFundingAddress, _amount);
         return true;
     }
    
@@ -43,14 +44,16 @@ contract ERC20 {
     function balanceOf(address account) public view virtual returns (uint256) {
         return _balances[account];
     }
+
+    event Transfer(address indexed from, address indexed to, uint256 value);
 }
 
 
-contract DonatoinAGroup is ERC20{ /* ERC20을 상속받는다.*/
+contract DonationAGroup is ERC20{ /* ERC20을 상속받는다.*/
     // (구조체1) 기부리스트
     struct DonationList {
         string title;               // 기부제목
-        string status;              // 기부상태 1:open, 2:close
+        uint status;              // 기부상태 1:open, 2:close - 1이면 open, 2면 close
         string contents;            // 기부모집내용
         uint256 startDate;           // 기부시작일
         uint256 closedDate;          // 기부종료일
@@ -74,7 +77,7 @@ contract DonatoinAGroup is ERC20{ /* ERC20을 상속받는다.*/
     mapping (address => uint256) public donatedBalance;              // key:수혜자주소,             value: 기부된금액
     mapping (address => uint) public donatedCount;                   // key:수혜자주소,             value: 기부참여자수
    
-    uint donationListIndex; // 기부리스트 index
+    uint donationListIndex; // 기부리스트 counter
    
  //   mapping (address => uint) beneficaryto;
  
@@ -82,8 +85,9 @@ contract DonatoinAGroup is ERC20{ /* ERC20을 상속받는다.*/
     DonationTransaction[] public donationTransactions;
    
     constructor() {
-        donationListIndex = 0; // 기부리스트의 index
+        donationListIndex = 0;
     }
+
 
     // (function 1) 수혜자가 화면에서 기부목록 등록시 호출한다.
     // 1. _donationFundingAmount만큼 ERC20을 생성한다.
@@ -91,24 +95,33 @@ contract DonatoinAGroup is ERC20{ /* ERC20을 상속받는다.*/
     // 3.기부된 금액 초기화
     // 4.기부 참여자수 초기화
     function addContributionList(string memory _title,
-                                  string memory _status,
                                   string memory _contents,
                                   uint256 _startDate,
-                                  uint256 _closedDate,
+                                  uint256 _term,
                                   string memory _coinName,
                                   string memory _coinSymbol,
-                                  address _donationFundingAddress,
                                   uint256 _donationFundingAmount) public {
                                      
-        _createCoinbutor(donationListIndex, _coinName, _coinSymbol, _donationFundingAmount, _donationFundingAddress);  // 1. _donationFundingAmount만큼 ERC20을 생성한다.                      
-        _addContributionList( _title, _status, _contents, _startDate, _closedDate, _coinName, _coinSymbol, _donationFundingAddress, _donationFundingAmount); // 2. donationLists에 입력받은 기부목록정보를 insert한다.                                
-        donatedBalance[_donationFundingAddress] = 0;// 3.기부된 금액 초기화
-        donatedCount[_donationFundingAddress] = 0;  // 4.기부 참여자수 초기화
+        uint _status;
+        if(_startDate>block.timestamp){
+            _status =2;
+        }
+        else{
+            _status =1;
+        }
+
+        bool result = _createCoinbutor(donationListIndex, _coinName, _coinSymbol, _donationFundingAmount, msg.sender);  // 1. _donationFundingAmount만큼 ERC20을 생성한다.                      
+
+        require(result, "ERROR:cannot create token");
+        _addContributionList( _title, _status, _contents, _startDate, _startDate+_term, _coinName, _coinSymbol, msg.sender, _donationFundingAmount); // 2. donationLists에 입력받은 기부목록정보를 insert한다.                                
+        donatedBalance[msg.sender] = 0;// 3.기부된 금액 초기화
+        donatedCount[msg.sender] = 0;  // 4.기부 참여자수 초기화
+
     }
    
     // (function 1 related)
     function _addContributionList(string memory _title,
-                                  string memory _status,
+                                  uint _status,
                                   string memory _contents,
                                   uint256 _startDate,
                                   uint256 _closedDate,
@@ -118,34 +131,35 @@ contract DonatoinAGroup is ERC20{ /* ERC20을 상속받는다.*/
                                   uint256 _donationFundingAmount) internal {
         donationLists.push(DonationList( _title, _status, _contents, _startDate, _closedDate, _coinName, _coinSymbol, _donationFundingAddress, _donationFundingAmount));  //DonationList에 값을 push한다.
         donationListIndexToBeneficary[donationListIndex] = _donationFundingAddress;
-        beneficiaryToDonationListIndex[_donationFundingAddress] = donationListIndex;
+        beneficiaryToDonationListIndex[_donationFundingAddress] = donationListIndex++;
         donatedCount[_donationFundingAddress] = 0;
-        donationListIndex++;
     }
    
     // (function 2) 기부자가 기부화면에 들어오면 기부리스트를 가져와 보여준다.
     // (requestType) 1: 전체리스트, 2: open상태인 리스트 전체, 3: close상태인 리스트 전체.. 로 하려다가 2번 구현시 에러나서 일단 스킵..;
     function getDonationList(uint _requestType) public view returns (DonationList[] memory){
-    //    uint idx=0;
-    //    DonationList[] memory openDonationList;
+        uint idx=0;
+        DonationList[] memory openDonationList;
        
         if(_requestType == 1){
-            return donationLists;
-        }
-        else /*if(_requestType == 2){
             for(uint i=0; i<= donationListIndex; i++){
-                if(donationLists[i].status == "1"){
-                //    openDonationList[idx] = donationLists;
-                    idx++;
+                    openDonationList[idx++] = donationLists[i];
+            }
+        }
+        else if(_requestType == 2){
+            for(uint i=0; i<= donationListIndex; i++){
+                if(donationLists[i].status == 1){
+                    openDonationList[idx++] = donationLists[i];
                 }
-            }*/
-            return donationLists;
+            }
+        }
+            return openDonationList;
     }
    
     // (function 3) 기부자가 리스트 중 선택해서 기부금액 입력하고 submit버튼 클릭시 호출된다.
     // 1. transfer() 함수를 통해 기부자는 수혜자가 발행한 ERC20 coin을 구매한다.
     // 2.
-    function doDonation(address _beneficiaryAddr, uint256 _amount) public {
+    function Donation(address _beneficiaryAddr, uint256 _amount) public {
         uint idx = beneficiaryToDonationListIndex[_beneficiaryAddr];
         transfer(msg.sender, _beneficiaryAddr, _amount);
         _afterTransaction(idx, msg.sender, _beneficiaryAddr, _amount, block.timestamp); //마지막인자 : 시스템 날짜 어떻게 가져오는지 모름;;
@@ -158,5 +172,5 @@ contract DonatoinAGroup is ERC20{ /* ERC20을 상속받는다.*/
         donatedCount[_beneficiaryAddr]++;
     }
 
- 
+
 }
