@@ -8,6 +8,7 @@ contract ERC20 {
     mapping (uint => uint256) private _totalSupply;         // key: 기부리스트의 index,    value: 코인총발행량
     mapping (address => uint256) private _balances; // key: 기부리스트의 index,    value: 코인잔량         //코인잔량은, 기부자들이 기부하는 금액만큼 차감된다.
    
+
     function _createCoinbutor(uint _index, string memory _name, string memory _symbol, uint256 _amount, address _donationFundingAddress) internal returns (bool) {
         _coinName[_index] = _name;
         _coinSymbol[_index] = _symbol;
@@ -45,7 +46,16 @@ contract ERC20 {
         return _balances[account];
     }
 
+    function getCoinname(uint index) public view virtual returns (string memory){
+        return _coinName[index];
+    }
+
+    function getSymbol(uint index) public view virtual returns (string memory) {
+        return _coinSymbol[index];
+    }
+
     event Transfer(address indexed from, address indexed to, uint256 value);
+
 }
 
 
@@ -80,7 +90,23 @@ contract DonationAGroup is ERC20{ /* ERC20을 상속받는다.*/
     uint donationListIndex; // 기부리스트 counter
    
  //   mapping (address => uint) beneficaryto;
+    function getAddress(uint index) public view virtual returns(address){
+        return donationListIndexToBeneficary[index];
+    }
+
+    function getIndex(address beneAdd) public view virtual returns(uint){
+        return beneficiaryToDonationListIndex[beneAdd];
+    }
  
+    function getDonatedBalance(address beneAdd) public view virtual returns(uint256){
+        return donatedBalance[beneAdd];
+    }
+
+    function getDonatedCount(address beneAdd) public view virtual returns(uint){
+        return donatedCount[beneAdd];
+    }
+
+
     DonationList[] public donationLists;
     DonationTransaction[] public donationTransactions;
    
@@ -109,7 +135,6 @@ contract DonationAGroup is ERC20{ /* ERC20을 상속받는다.*/
         else{
             _status =1;
         }
-
         bool result = _createCoinbutor(donationListIndex, _coinName, _coinSymbol, _donationFundingAmount, msg.sender);  // 1. _donationFundingAmount만큼 ERC20을 생성한다.                      
 
         require(result, "ERROR:cannot create token");
@@ -171,6 +196,5 @@ contract DonationAGroup is ERC20{ /* ERC20을 상속받는다.*/
         donatedBalance[_beneficiaryAddr] = donatedBalance[_beneficiaryAddr] + _donatorAmount;
         donatedCount[_beneficiaryAddr]++;
     }
-
 
 }
