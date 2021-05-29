@@ -54,6 +54,10 @@ contract ERC20 {
         return _coinSymbol[index];
     }
 
+    function getSupply(uint index) public view virtual returns (uint256){
+        return _totalSupply[index];
+    }
+
     event Transfer(address indexed from, address indexed to, uint256 value);
 
 }
