@@ -13,16 +13,20 @@ contract ERC20 {
         _coinName[_index] = _name;
         _coinSymbol[_index] = _symbol;
         _totalSupply[_index] = _amount;
-        _balances[_donationFundingAddress] = _amount;        //기부리스트 생성 초기에, 수혜자주소에 발행한 ERC20코인 총량을 넣는다. 이후 기부자들이 이를 구매시 차감된다.
-
-        emit Transfer(address(0), _donationFundingAddress, _amount);
-        transfer(_donationFundingAddress, address(0), _amount);
+        _mint(_donationFundingAddress, _amount);
         return true;
     }
    
     function transfer(address donatorAddr, address beneficiaryAddr, uint256 amount) public virtual returns (bool) {
         _transfer(donatorAddr, beneficiaryAddr, amount);
         return true;
+    }
+
+    function _mint(address account, uint256 amount_) internal {
+        require(account != address(0),"ERC20: mint to the zero address");
+        _balances[account] = amount_;//기부리스트 생성 초기에, 수혜자주소에 발행한 ERC20코인 총량을 넣는다. 이후 기부자들이 이를 구매시 차감된다.
+        emit Transfer(address(0),account,amount_);
+
     }
 
 
